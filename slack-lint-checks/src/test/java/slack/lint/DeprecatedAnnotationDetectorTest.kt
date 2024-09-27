@@ -232,6 +232,42 @@ class DeprecatedAnnotationDetectorTest : BaseSlackLintTest() {
       )
   }
 
+  @Test
+  fun `kotlin-sourced non-deprecated overridden method use has no warning in kotlin`() {
+    lint()
+      .files(
+        DEPRECATED_METHOD_OVERRIDE_KOTLIN,
+        kotlin(
+            """
+                  package slack.test
+
+                  import slack.test.thisIsDeprecated
+
+                  class TestClass {
+
+                    public fun doStuff() {
+                      thisIsDeprecated() {}
+
+                      thisIsDeprecated("This is NOT deprecated overridden version.") {}
+                    }
+                  }
+                """
+          )
+          .indented(),
+      )
+      .issues(DeprecatedAnnotationDetector.ISSUE_DEPRECATED_CALL)
+      .run()
+      .expect(
+        """
+          src/slack/test/TestClass.kt:8: Warning: slack.test.TestKt.thisIsDeprecated is deprecated; consider using an alternative. [DeprecatedCall]
+              thisIsDeprecated() {}
+              ~~~~~~~~~~~~~~~~~~~~~
+          0 errors, 1 warnings
+        """
+          .trimIndent()
+      )
+  }
+
   private val DEPRECATED_CLASS =
     java(
       """
@@ -304,4 +340,25 @@ class DeprecatedAnnotationDetectorTest : BaseSlackLintTest() {
           }
         """
     )
+
+    private val DEPRECATED_METHOD_OVERRIDE_KOTLIN =
+        kotlin(
+            """
+          package slack.test
+
+          import kotlin.Deprecated
+          import kotlin.DeprecationLevel
+
+          // This deprecated-error function shadows the varargs overload so that the varargs version
+          // is not used without key parameters.
+          @Deprecated("", level = DeprecationLevel.ERROR)
+          public fun thisIsDeprecated(
+            block: () -> Unit
+          ) = Unit
+
+          public fun thisIsDeprecated(param: Any?, block: () -> Unit) {}
+          public fun thisIsDeprecated(param: Any?, param1: Any?, block: () -> Unit) {}
+          public fun thisIsDeprecated(vararg params: Any?, block: () -> Unit) {}
+        """
+        )
 }
